@@ -1,3 +1,284 @@
+1. プロジェクト構造:
+
+
+```plaintext
+vue-laravelProject/
+├── frontend/
+│   ├── Dockerfile
+│   ├── nuxt.config.js
+│   ├── pages/
+│   ├── components/
+│   ├── layouts/
+│   └── assets/
+└── docker-compose.yml
+```
+
+2. `docker-compose.yml`:
+
+
+```yaml
+version: '3'
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+```
+
+3. `frontend/Dockerfile`:
+
+
+```dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]
+```
+
+4. Nuxtプロジェクトの初期化:
+
+
+```shellscript
+# プロジェクトディレクトリで実行
+mkdir frontend
+cd frontend
+npx nuxi init .
+```
+
+5. `nuxt.config.ts`の設定:
+
+
+```javascript
+// nuxt.config.ts
+export default defineNuxtConfig({
+  // ビルドモジュール
+  modules: [
+    '@nuxtjs/tailwindcss',
+    '@bootstrap-vue-next/nuxt'
+  ],
+
+  // アプリケーション設定
+  app: {
+    head: {
+      title: 'Shop & Coupon App',
+      meta: [
+        { charset: 'utf-8' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' }
+      ]
+    }
+  },
+
+  // CSS設定
+  css: [
+    '~/assets/css/main.css',
+    'bootstrap/dist/css/bootstrap.css'
+  ],
+
+  // 開発サーバー設定
+  devServer: {
+    port: 3000
+  }
+})
+```
+
+次に、主要なコンポーネントの実装を行います。各実装の詳細な説明を加えていきます：
+
+1. `layouts/default.vue`:
+
+
+```vue
+<template>
+  <div class="min-h-screen bg-gray-100">
+    <!-- ヘッダーコンポーネント -->
+    <header class="bg-white shadow-sm">
+      <nav class="container mx-auto px-4 py-3">
+        <div class="flex justify-between items-center">
+          <!-- ロゴ/サイト名 -->
+          <NuxtLink to="/" class="text-xl font-bold text-gray-800">
+            Shop App
+          </NuxtLink>
+
+          <!-- ナビゲーションメニュー -->
+          <div class="flex items-center space-x-4">
+            <NuxtLink 
+              v-for="item in menuItems"
+              :key="item.path"
+              :to="item.path"
+              class="text-gray-600 hover:text-gray-900"
+            >
+              {{ item.name }}
+            </NuxtLink>
+            
+            <!-- ハンバーガーメニュー -->
+            <div class="relative">
+              <button 
+                @click="toggleMenu"
+                class="p-2 rounded-lg hover:bg-gray-100"
+              >
+                <span class="sr-only">メニューを開く</span>
+                <i class="fas fa-bars"></i>
+              </button>
+
+              <!-- ドロップダウンメニュー -->
+              <div 
+                v-if="isMenuOpen"
+                class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2"
+              >
+                <a 
+                  href="#"
+                  @click.prevent="showLogoutConfirm"
+                  class="block px-4 py-2 text-gray-700 hover:bg-gray-100"
+                >
+                  ログアウト
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="container mx-auto px-4 py-8">
+      <slot />
+    </main>
+
+    <!-- ログアウトモーダル -->
+    <div 
+      v-if="showLogoutModal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+    >
+      <div class="bg-white rounded-lg p-6 max-w-sm w-full">
+        <h3 class="text-lg font-semibold mb-4">ログアウトしますか？</h3>
+        <div class="flex justify-end space-x-4">
+          <button
+            @click="closeLogoutModal"
+            class="px-4 py-2 text-gray-600 hover:text-gray-800"
+          >
+            キャンセル
+          </button>
+          <button
+            @click="logout"
+            class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+          >
+            ログアウト
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+// Vueの機能をインポート
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+// コンポーネントの定義
+export default {
+  setup() {
+    // リアクティブな状態の定義
+    const isMenuOpen = ref(false)
+    const showLogoutModal = ref(false)
+    const router = useRouter()
+
+    // ナビゲーションメニューの定義
+    const menuItems = [
+      { name: 'ホーム', path: '/' },
+      { name: 'ショップ一覧', path: '/shops' },
+      { name: 'クーポン一覧', path: '/coupons' }
+    ]
+
+    // メソッドの定義
+    const toggleMenu = () => {
+      isMenuOpen.value = !isMenuOpen.value
+    }
+
+    const showLogoutConfirm = () => {
+      isMenuOpen.value = false
+      showLogoutModal.value = true
+    }
+
+    const closeLogoutModal = () => {
+      showLogoutModal.value = false
+    }
+
+    const logout = async () => {
+      try {
+        // ログアウト処理
+        await fetch('/api/logout', { method: 'POST' })
+        router.push('/login')
+      } catch (error) {
+        console.error('ログアウトに失敗しました:', error)
+      }
+      showLogoutModal.value = false
+    }
+
+    // 使用する値とメソッドを返す
+    return {
+      isMenuOpen,
+      showLogoutModal,
+      menuItems,
+      toggleMenu,
+      showLogoutConfirm,
+      closeLogoutModal,
+      logout
+    }
+  }
+}
+</script>
+```
+
+Vue.js/Nuxtの主要な概念の説明：
+
+1. **コンポーネントの構造**:
+
+
+- `<template>`: コンポーネントのHTML構造を定義
+- `<script>`: コンポーネントのロジックを定義
+- `<style>`: コンポーネント固有のスタイルを定義
+
+
+2. **Composition API**:
+
+
+- `setup()`: コンポーネントの初期化とロジックを定義する関数
+- `ref()`: リアクティブな値を作成する関数
+- `computed()`: 算出プロパティを作成する関数
+
+
+3. **ディレクティブ**:
+
+
+- `v-if`: 条件付きレンダリング
+- `v-for`: リストレンダリング
+- `v-model`: 双方向データバインディング
+- `@click`: イベントハンドリング（`v-on:click`の省略形）
+
+
+4. **Nuxtの機能**:
+
+
+- `<NuxtLink>`: ページ間のナビゲーション用コンポーネント
+- `useRouter()`: ルーティング操作用のフック
+- `defineNuxtConfig()`: Nuxtの設定を定義
+
 はい、続いて主要なページとコンポーネントの実装を説明していきます。
 
 まず、pages/index.vue（トップページ）の実装:
